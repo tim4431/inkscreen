@@ -1,0 +1,9 @@
+numpy
+matplotlib
+pandas
+homeassistant-api
+requests
+PyYAML
+Pillow
+pytz
+cairosvg

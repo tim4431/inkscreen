@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  inkscreen:
+    build: .
+    container_name: inkscreen-app
+    restart: unless-stopped
+    volumes:
+      # 配置文件挂载
+      - ./config.yaml:/app/config.yaml:ro
+      - ./secrets.yaml:/app/secrets.yaml:ro
+      - ./output:/app/output
+      - ./assets:/app/assets

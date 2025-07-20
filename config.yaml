@@ -1,0 +1,154 @@
+ui_settings:
+  block_size: 320
+
+entities:
+  light.yeelight_lamp1_72ba_light:
+    name: "Light"
+    state_str_name_mapping:
+      "on": "ON"
+      "off": "OFF"
+  sensor.temperature_humidity_sensor_e4c5_temperature:
+    name: "Desk"
+  humidifier.deerma_jsq2g_7781_humidifier:
+    name: "Bedroom Humidifier"
+    state_abnormal_str: "off"
+    state_str_name_mapping:
+      "on": "ON"
+      "off": "OFF"
+  sensor.temperature_humidity_sensor_a63c_temperature:
+    name: "Bedside"
+  sensor.temperature_humidity_sensor_707f_temperature:
+    name: "Living Room"
+  button.esphome_web_2e773f_fan_power:
+    name: "Fan Power"
+    state_abnormal_str: "unavailable"
+  switch.esphome_web_f1baa4_lightswitch_0:
+    name: "Light Switch"
+    state_abnormal_str: "unavailable"
+  sensor.timnas_status:
+    name: TimNAS
+    state_abnormal_str: "unavailable"
+  light.yeelink_lamp22_2042_light:
+    name: "Screenbar Light"
+    state_abnormal_str: "unavailable"
+  binary_sensor.door_window_sensor_bf59_door_left_open:
+    name: "Window/Door Sensor"
+    state_abnormal_str: "unavailable"
+  binary_sensor.miwifi_router_wan_status:
+    name: "Router Status"
+    state_abnormal_str: ["off","unavailable"]
+
+
+components:
+  temperature_chart:
+    position: [2, 0]  # [X,Y]
+    size: [4, 2]     # [W,H]
+    refresh:
+      type: "time"
+      interval: 600   # s
+    callback: "render_temperature_chart"
+    params:
+      entities:
+        - "sensor.temperature_humidity_sensor_e4c5_temperature"
+        - "sensor.temperature_humidity_sensor_a63c_temperature"
+        - "sensor.temperature_humidity_sensor_707f_temperature"
+
+  sunsethue:
+    position: [6, 0]  # [X,Y]
+    size: [2, 2]     # [W,H]
+    refresh:
+      type: "time"
+      interval: 7200   # s
+    callback: "render_sunsethue_forecast"
+    params:
+      icon_cloud: "assets/cloud.svg"
+      icon_golden: "assets/sun.svg"
+      icon_blue: "assets/sunset.svg"
+
+
+  xiaomi_lamp:
+    position: [0, 0]
+    size: [1, 1]
+    refresh:
+      type: "ha_event"
+      entity_id: "light.yeelight_lamp1_72ba_light"
+    callback: "default_ha_callback"
+    params:
+      icon: "assets/lamp.svg"
+
+  humidifier:
+    position: [0, 1]
+    size: [1, 1]
+    refresh:
+      type: "ha_event"
+      entity_id: "humidifier.deerma_jsq2g_7781_humidifier"
+    callback: "default_ha_callback"
+    params:
+      icon: "assets/humidifier.svg"
+
+  ESPHome_Lightswitch_0:
+    position: [1, 0]
+    size: [0.5, 0.5]
+    refresh:
+      type: "ha_event"
+      entity_id: "switch.esphome_web_f1baa4_lightswitch_0"
+    callback: "default_ha_callback"
+    params:
+      icon: "assets/light.svg"
+      render_state_text: false
+
+  ESPHome_IR_0:
+    position: [1, 0.5]
+    size: [0.5, 0.5]
+    refresh:
+      type: "ha_event"
+      entity_id: "button.esphome_web_2e773f_fan_power"
+    callback: "default_ha_callback"
+    params:
+      icon: "assets/infrared.svg"
+      render_state_text: false
+
+  Xiaomi_Screenbar:
+    position: [1.5, 0]
+    size: [0.5, 0.5]
+    refresh:
+      type: "ha_event"
+      entity_id: "light.yeelink_lamp22_2042_light"
+    callback: "default_ha_callback"
+    params:
+      icon: "assets/monitor.svg"
+      render_state_text: false
+
+  Window_Door_Sensor:
+    position: [1.5, 0.5]
+    size: [0.5, 0.5]
+    refresh:
+      type: "ha_event"
+      entity_id: "binary_sensor.door_window_sensor_bf59_door_left_open"
+    callback: "default_ha_callback"
+    params:
+      icon: "assets/door_open.svg"
+      render_state_text: false
+
+  TimNAS:
+    position: [1, 1]
+    size: [0.5, 0.5]
+    refresh:
+      type: "ha_event"
+      entity_id: "sensor.timnas_status"
+    callback: "default_ha_callback"
+    params:
+      icon: "assets/server.svg"
+      render_state_text: false
+
+
+  router_status:
+    position: [1.5, 1]
+    size: [0.5, 0.5]
+    refresh:
+      type: "ha_event"
+      entity_id: "binary_sensor.miwifi_router_wan_status"
+    callback: "default_ha_callback"
+    params:
+      icon: "assets/lan.svg"
+      render_state_text: false
