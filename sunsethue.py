@@ -1,8 +1,8 @@
 import requests
 import json
 from datetime import datetime
-import pytz
 from const import *
+from zoneinfo import ZoneInfo
 
 
 def get_weather_forecast():
@@ -55,7 +55,7 @@ def format_forecast_data(data):
     blue_hour = forecast_data.get("magics", {}).get("blue_hour", [])
 
     # Helper function to format hour data
-    def format_hour_time(hour_data, timezone_name="America/Los_Angeles"):
+    def format_hour_time(hour_data):
         """Format an hour range time from UTC to specified timezone."""
         if not hour_data or len(hour_data) < 1:
             return "Not available"
@@ -65,7 +65,7 @@ def format_forecast_data(data):
             hour_start_utc = datetime.fromisoformat(hour_data[0].replace("Z", "+00:00"))
 
             # Convert to specified timezone
-            local_timezone = pytz.timezone(timezone_name)
+            local_timezone = ZoneInfo(TIMEZONE)
             hour_start_local = hour_start_utc.astimezone(local_timezone)
 
             # Format the time
@@ -87,3 +87,9 @@ def format_forecast_data(data):
     }
 
     return formatted_data
+
+
+if __name__ == "__main__":
+    forecast = get_weather_forecast()
+    formatted_forecast = format_forecast_data(forecast)
+    print(formatted_forecast)

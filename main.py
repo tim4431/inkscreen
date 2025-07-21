@@ -13,6 +13,7 @@ class UI:
             print("Clearing the screen at startup...")
             http_post(SECRETS["inkscreen"]["host"], "/clear")
         #
+        self.running = False
         self.ui_settings = CONF["ui_settings"]
 
         self.components_conf = CONF["components"]
@@ -22,19 +23,14 @@ class UI:
         for name in self.components_conf:
             component = create_component(name)
             self.components[name] = component
-            if component.entity_id:
+            if component.component_type in ["ha_event"]:
                 self.ha_registry.update({component.entity_id: component})
         # print(self.ha_registry)
 
-        self.running = False
         self.component_timers = {}  # 存储每个组件的定时器
 
         # make output directory
         os.makedirs("output", exist_ok=True)
-
-        # add preview server thread
-        self.preview_server_thread = None
-        self.preview_server_port = 8080
 
     def start(self):
         if self.running:
@@ -43,7 +39,7 @@ class UI:
         self.running = True
 
         for name, component in self.components.items():
-            if component.refresh_type == "ha_event":
+            if component.component_type in ["ha_event", "notebook", "timer"]:
                 component.callback()
 
         # ha subscription thread
@@ -54,15 +50,12 @@ class UI:
         self._start_component_timers()
 
     def _start_component_timers(self):
-        """为所有基于时间刷新的组件启动定时器"""
-        print("Starting component timers...")
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] Starting component timers...")
         for name, component in self.components.items():
-            if hasattr(component, "refresh_type") and component.refresh_type == "time":
-                try:
-                    resp = component.callback()
-                    # print(f"Component {name} initialized with response: {resp}")
-                except Exception as e:
-                    print(f"[!] Error refreshing component {name}: {e}")
+            if component.component_type == "timer":
+                print(
+                    f"[{datetime.now().strftime('%H:%M:%S')}] Scheduling timer for {name}"
+                )
                 self._schedule_component_refresh(name, component)
 
     def _schedule_component_refresh(self, component_name, component):
@@ -75,10 +68,7 @@ class UI:
                 component.callback()
                 self._schedule_component_refresh(component_name, component)
 
-        # 获取刷新间隔
         interval = getattr(component, "refresh_interval", 600)
-
-        # 创建定时器
         timer = threading.Timer(interval, refresh_callback)
         timer.daemon = True
         timer.start()
@@ -88,7 +78,9 @@ class UI:
     def start_ha_subscription(self):
         try:
             with WebsocketClient(WS_URL, TOKEN) as ws:
-                print("Subscribed to Home Assistant WebSocket")
+                print(
+                    f"[{datetime.now().strftime('%H:%M:%S')}] Subscribing to Home Assistant WebSocket"
+                )
                 with ws.listen_events("state_changed") as events:
                     for ev in events:
                         data = ev.data
@@ -104,21 +96,20 @@ class UI:
     def stop(self):
         self.running = False
         # ha_thread 是在 start 方法中作为守护线程启动的，无需显式停止
-        # 取消所有定时器
+        # Cancel all timers
         for timer in self.component_timers.values():
             timer.cancel()
         self.component_timers.clear()
 
 
-# 示例用法
 if __name__ == "__main__":
     ui_manager = UI()
     ui_manager.start()
 
     try:
-        # 保持主线程运行
+        # keey the main thread alive
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        print("正在退出...")
+        print("Exiting ...")
         ui_manager.stop()

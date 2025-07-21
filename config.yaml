@@ -1,3 +1,6 @@
+locale:
+  timezone: "America/Los_Angeles"
+
 ui_settings:
   block_size: 320
 
@@ -21,31 +24,28 @@ entities:
     name: "Living Room"
   button.esphome_web_2e773f_fan_power:
     name: "Fan Power"
-    state_abnormal_str: "unavailable"
   switch.esphome_web_f1baa4_lightswitch_0:
     name: "Light Switch"
-    state_abnormal_str: "unavailable"
   sensor.timnas_status:
     name: TimNAS
-    state_abnormal_str: "unavailable"
   light.yeelink_lamp22_2042_light:
     name: "Screenbar Light"
-    state_abnormal_str: "unavailable"
   binary_sensor.door_window_sensor_bf59_door_left_open:
     name: "Window/Door Sensor"
-    state_abnormal_str: "unavailable"
   binary_sensor.miwifi_router_wan_status:
     name: "Router Status"
     state_abnormal_str: ["off","unavailable"]
-
+  binary_sensor.zigbee2mqtt_bridge_connection_state:
+    name: "Zigbee2MQTT Bridge"
+  event.090615_cn_blt_3_1luh2g9rc4o03_akswr3_click_e_2_1012:
+    name: "PTX AK3 Switch"
 
 components:
   temperature_chart:
     position: [2, 0]  # [X,Y]
     size: [4, 2]     # [W,H]
-    refresh:
-      type: "time"
-      interval: 600   # s
+    type: "timer"
+    refresh_interval: 600   # s
     callback: "render_temperature_chart"
     params:
       entities:
@@ -56,22 +56,40 @@ components:
   sunsethue:
     position: [6, 0]  # [X,Y]
     size: [2, 2]     # [W,H]
-    refresh:
-      type: "time"
-      interval: 7200   # s
+    type: "timer"
+    refresh_interval: 7200   # s
     callback: "render_sunsethue_forecast"
     params:
       icon_cloud: "assets/cloud.svg"
       icon_golden: "assets/sun.svg"
       icon_blue: "assets/sunset.svg"
 
+  cake_notebook:
+    position: [6, 2]  # [X,Y]
+    size: [2, 3]     # [W,H]
+    type: "notebook"
+    params:
+      icon: "assets/cake.svg"
+      text_size: 65
+      text: |
+        Cake Receipe 6"
+
+        egg        * 3
+        oil        48g
+        flour      63g
+        milk       48g
+        sugar      47g
+        oven 155C/310F
+                 80min
+      text_spacing: 30
+
+
 
   xiaomi_lamp:
     position: [0, 0]
     size: [1, 1]
-    refresh:
-      type: "ha_event"
-      entity_id: "light.yeelight_lamp1_72ba_light"
+    type: "ha_event"
+    entity_id: "light.yeelight_lamp1_72ba_light"
     callback: "default_ha_callback"
     params:
       icon: "assets/lamp.svg"
@@ -79,9 +97,8 @@ components:
   humidifier:
     position: [0, 1]
     size: [1, 1]
-    refresh:
-      type: "ha_event"
-      entity_id: "humidifier.deerma_jsq2g_7781_humidifier"
+    type: "ha_event"
+    entity_id: "humidifier.deerma_jsq2g_7781_humidifier"
     callback: "default_ha_callback"
     params:
       icon: "assets/humidifier.svg"
@@ -89,9 +106,8 @@ components:
   ESPHome_Lightswitch_0:
     position: [1, 0]
     size: [0.5, 0.5]
-    refresh:
-      type: "ha_event"
-      entity_id: "switch.esphome_web_f1baa4_lightswitch_0"
+    type: "ha_event"
+    entity_id: "switch.esphome_web_f1baa4_lightswitch_0"
     callback: "default_ha_callback"
     params:
       icon: "assets/light.svg"
@@ -100,9 +116,8 @@ components:
   ESPHome_IR_0:
     position: [1, 0.5]
     size: [0.5, 0.5]
-    refresh:
-      type: "ha_event"
-      entity_id: "button.esphome_web_2e773f_fan_power"
+    type: "ha_event"
+    entity_id: "button.esphome_web_2e773f_fan_power"
     callback: "default_ha_callback"
     params:
       icon: "assets/infrared.svg"
@@ -111,9 +126,8 @@ components:
   Xiaomi_Screenbar:
     position: [1.5, 0]
     size: [0.5, 0.5]
-    refresh:
-      type: "ha_event"
-      entity_id: "light.yeelink_lamp22_2042_light"
+    type: "ha_event"
+    entity_id: "light.yeelink_lamp22_2042_light"
     callback: "default_ha_callback"
     params:
       icon: "assets/monitor.svg"
@@ -122,9 +136,8 @@ components:
   Window_Door_Sensor:
     position: [1.5, 0.5]
     size: [0.5, 0.5]
-    refresh:
-      type: "ha_event"
-      entity_id: "binary_sensor.door_window_sensor_bf59_door_left_open"
+    type: "ha_event"
+    entity_id: "binary_sensor.door_window_sensor_bf59_door_left_open"
     callback: "default_ha_callback"
     params:
       icon: "assets/door_open.svg"
@@ -133,22 +146,39 @@ components:
   TimNAS:
     position: [1, 1]
     size: [0.5, 0.5]
-    refresh:
-      type: "ha_event"
-      entity_id: "sensor.timnas_status"
+    type: "ha_event"
+    entity_id: "sensor.timnas_status"
     callback: "default_ha_callback"
     params:
       icon: "assets/server.svg"
       render_state_text: false
 
-
   router_status:
     position: [1.5, 1]
     size: [0.5, 0.5]
-    refresh:
-      type: "ha_event"
-      entity_id: "binary_sensor.miwifi_router_wan_status"
+    type: "ha_event"
+    entity_id: "binary_sensor.miwifi_router_wan_status"
     callback: "default_ha_callback"
     params:
       icon: "assets/lan.svg"
+      render_state_text: false
+
+  zigbee2mqtt:
+    position: [1, 1.5]
+    size: [0.5, 0.5]
+    type: "ha_event"
+    entity_id: "binary_sensor.zigbee2mqtt_bridge_connection_state"
+    callback: "default_ha_callback"
+    params:
+      icon: "assets/mqtt.svg"
+      render_state_text: false
+
+  ptx_akswr3_switch:
+    position: [1.5, 1.5]
+    size: [0.5, 0.5]
+    type: "ha_event"
+    entity_id: "event.090615_cn_blt_3_1luh2g9rc4o03_akswr3_click_e_2_1012"
+    callback: "default_ha_callback"
+    params:
+      icon: "assets/switch.svg"
       render_state_text: false

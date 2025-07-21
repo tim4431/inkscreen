@@ -10,6 +10,7 @@ import matplotlib
 matplotlib.use("Agg")  # 必须在plt导入前设置
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import pytz
 
 from send_image import draw_image
 from sunsethue import *
@@ -26,6 +27,9 @@ def plot_sensor_history(ax, eids: List[str]):
 
             if not df.empty:
                 df = df.set_index("time")
+
+                df.index = df.index.tz_convert(TIMEZONE)
+
                 df_resampled = (
                     df["temperature"].resample("5min").mean()
                 )  # Resample to 5-minute intervals
@@ -51,9 +55,12 @@ def plot_sensor_history(ax, eids: List[str]):
     ax.tick_params(axis="x", rotation=0, labelsize=9)
     ax.tick_params(axis="y", labelsize=9)
 
-    # Format x-axis to show time nicely
-    ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
-    ax.xaxis.set_major_locator(mdates.HourLocator(interval=3))  # 每3小时显示一次
+    # Format x-axis to show time nicely with timezone
+    local_tz = pytz.timezone("America/Los_Angeles")  # UTC-7
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M", tz=local_tz))
+    ax.xaxis.set_major_locator(
+        mdates.HourLocator(interval=3, tz=local_tz)
+    )  # 每3小时显示一次
 
     # Set y-axis ticks
     y_min, y_max = ax.get_ylim()
@@ -82,13 +89,15 @@ def create_component(
     name: str,
 ) -> "BaseComponent":
     component_conf = CONF["components"][name]
-    refresh_type = component_conf["refresh"]["type"]
-    if refresh_type == "ha_event":
+    component_type = component_conf["type"]
+    if component_type == "ha_event":
         return HAComponent(name)
-    elif refresh_type == "time":
+    elif component_type == "timer":
         return TimerComponent(name)
+    elif component_type == "notebook":
+        return NotebookComponent(name)
     else:
-        raise ValueError(f"Unknown component type: {refresh_type}")
+        raise ValueError(f"Unknown component type: {component_type}")
 
 
 class BaseComponent:
@@ -97,13 +106,15 @@ class BaseComponent:
         name: str,
     ):
         self.name = name
-        component_conf = CONF["components"][name]
+        self.component_conf = CONF["components"][name]
+        self.component_type = self.component_conf["type"]
         self.block_size = int(CONF["ui_settings"]["block_size"])
+
         # Position and size in blocks
-        self.X = component_conf["position"][0]
-        self.Y = component_conf["position"][1]
-        self.W = component_conf["size"][0]
-        self.H = component_conf["size"][1]
+        self.X = self.component_conf["position"][0]
+        self.Y = self.component_conf["position"][1]
+        self.W = self.component_conf["size"][0]
+        self.H = self.component_conf["size"][1]
 
         # Calculate pixel dimensions
         self.x_px = int(self.X * self.block_size)
@@ -111,28 +122,22 @@ class BaseComponent:
         self.width_px = int(self.W * self.block_size)
         self.height_px = int(self.H * self.block_size)
 
-        # Refresh configuration
-        self.last_refresh_time = None
-        self.entity_id = None
-        self.refresh_type = component_conf["refresh"]["type"]
-
-        self.params = component_conf.get("params", {})
+        self.params = self.component_conf.get("params", {})
 
         img = Image.new("RGB", (self.width_px, self.height_px), "white")
         self.img = img
         draw = ImageDraw.Draw(img)
         self.draw = draw
 
-    def callback(self) -> bool:
-        state = self.callback_func(**self.params)
+    def callback(self):
+        self.callback_func()
         if SECRETS["inkscreen"].get("enable", True):
             self.render_to_inkscreen()
-        return state
 
     def render_to_inkscreen(self) -> bool:
         """Render the component to an image file."""
         print(
-            f"Rendering {self.name} to ink screen at ({self.x_px}, {self.y_px}) with size {self.width_px}x{self.height_px}"
+            f"[{datetime.now():%H:%M:%S}] Rendering {self.name} to ink screen at ({self.x_px}, {self.y_px}) with size {self.width_px}x{self.height_px}"
         )
         try:
             draw_image(
@@ -235,6 +240,20 @@ class BaseComponent:
             width=border_width,
         )
 
+    def _get_font(self, size: int) -> ImageFont.FreeTypeFont:
+        try:
+            return ImageFont.truetype(Path("assets/MYRIADPRO-BOLD.otf"), size)
+        except IOError:
+            print("Using default font due to error loading custom font.")
+            return ImageFont.load_default()
+
+    def _get_monospaced_font(self, size: int) -> ImageFont.FreeTypeFont:
+        try:
+            return ImageFont.truetype(Path("assets/consolab.ttf"), size)
+        except IOError:
+            print("Using default monospaced font due to error loading custom font.")
+            return ImageFont.load_default()
+
     def _invert_icon(self, icon: Image.Image) -> Image.Image:
         """反色图标，用于深色背景"""
         # 将RGBA图像转换为RGB，然后反色
@@ -280,6 +299,20 @@ class BaseComponent:
         else:
             self.img = Image.eval(self.img, lambda x: 255 - x)
 
+    def hook_callback_func(self):
+        # Callback configuration
+        try:
+            self.callback_name = self.component_conf.get(
+                "callback", "_default_callback_func"
+            )
+            self.callback_func = getattr(
+                self, self.callback_name, self._default_callback_func
+            )
+            # print(f"Component {self.name} using callback: {self.callback_func}")
+        except KeyError:
+            print(f"[!] Callback '{self.callback_name}' not found, using default.")
+            self.callback_func = self._default_callback_func
+
 
 class HAComponent(BaseComponent):
     def __init__(
@@ -287,33 +320,12 @@ class HAComponent(BaseComponent):
         name: str,
     ):
         super().__init__(name)
-        component_conf = CONF["components"][name]
-
-        # entity_id configuration
-        self.entity_id = component_conf["refresh"]["entity_id"]
+        self.entity_id = self.component_conf["entity_id"]
         self.entity = ha_states.get(self.entity_id, None)
+        self._default_callback_func = self.default_ha_callback
+        self.hook_callback_func()
 
-        # Callback configuration
-        try:
-            self.callback_name = component_conf["callback"]
-            self.callback_func = getattr(
-                self, self.callback_name, self.default_ha_callback
-            )
-            # print(f"Component {self.name} using callback: {self.callback_func}")
-        except KeyError:
-            # print(f"[!] Callback '{self.callback_name}' not found, using default.")
-            self.callback_func = self.default_ha_callback
-
-    @property
-    def state(self) -> str:
-        """Get the current state of the entity."""
-        state = get_entity_state_local(self.entity_id)
-        if state is None:
-            print(f"[!] Entity {self.entity_id} not found in local cache.")
-            return None
-
-    def default_ha_callback(self, **kwargs) -> bool:
-        current_state = get_entity_state_local(self.entity_id)
+    def default_ha_callback(self) -> bool:
         fg_color, bg_color = (
             ("black", "white") if self.entity.normal else ("white", "black")
         )
@@ -358,10 +370,12 @@ class HAComponent(BaseComponent):
         try:
             output_path = f"output/{self.name}.jpg"
             self.img.save(output_path)
-            print(f"Entity {self.entity_id} rendered to {output_path}")
+            print(
+                f"[{datetime.now().strftime('%H:%M:%S')}] {self.name} rendered to {output_path}"
+            )
             return True
         except Exception as e:
-            print(f"Error rendering entity {self.entity_id}: {e}")
+            print(f"[!] Error rendering entity {self.entity_id}: {e}")
             return False
 
 
@@ -371,22 +385,12 @@ class TimerComponent(BaseComponent):
         name: str,
     ):
         super().__init__(name)
-        component_conf = CONF["components"][name]
 
-        self.refresh_interval = component_conf["refresh"]["interval"]
+        self.refresh_interval = self.component_conf["refresh_interval"]
+        self._default_callback_func = self.default_timer_callback
+        self.hook_callback_func()
 
-        # Callback configuration
-        try:
-            self.callback_name = component_conf["callback"]
-            self.callback_func = getattr(
-                self, self.callback_name, self.default_timer_callback
-            )
-            # print(f"Component {self.name} using callback: {self.callback_func}")
-        except KeyError:
-            print(f"[!] Callback '{self.callback_name}' not found, using default.")
-            self.callback_func = self.default_timer_callback
-
-    def default_timer_callback(self, **kwargs) -> bool:
+    def default_timer_callback(self) -> bool:
         width = self.width_px
         height = self.height_px
         DPI = 200
@@ -421,15 +425,17 @@ class TimerComponent(BaseComponent):
 
             # Save the final image
             self.img.save(f"output/{self.name}.jpg")
-            print(f"{self.name}: Temperature chart saved to output/{self.name}.jpg")
+            print(
+                f"[{datetime.now().strftime('%H:%M:%S')}] {self.name}: Chart saved to output/{self.name}.jpg"
+            )
             return True
         except Exception as e:
-            print(f"{self.name}: Temperature chart rendering error: {e}")
+            print(f"[!] {self.name}: Chart rendering error: {e}")
             return False
 
     def render_sunsethue_forecast(self, **kwargs) -> bool:
         """Render the sunset hue forecast."""
-        # self.draw_frame(self.draw, bg_color="white")
+
         try:
             weather_data = get_weather_forecast()
             weather_report = format_forecast_data(weather_data)
@@ -439,15 +445,9 @@ class TimerComponent(BaseComponent):
             blue_hour_str = weather_report.get("blue_hour", "No data")
             cloud_cover = weather_report.get("cloud_cover", "No data")
 
-            try:
-                title_font = ImageFont.truetype(Path("assets/arialbd.ttf"), 64)
-                percent_font = ImageFont.truetype(Path("assets/arialbd.ttf"), 108)
-                text_font = ImageFont.truetype(Path("assets/arialbd.ttf"), 50)
-
-            except IOError:
-                print("Using default font due to error loading custom font.")
-                title_font = ImageFont.load_default()
-                percent_font = ImageFont.load_default()
+            title_font = self._get_font(64)
+            percent_font = self._get_font(108)
+            text_font = self._get_font(50)
 
             # Background color based on quality
             self.draw_frame(self.draw, bg_color="white")
@@ -461,7 +461,7 @@ class TimerComponent(BaseComponent):
             ICON_SIZE = 80
             sunset_icon_x = self.width_px - D
             sunset_icon_y = 30
-            H_ICON_TEXT = 10
+            H_ICON_TEXT = 20
             self.draw_icon(
                 icon_path=kwargs.get("icon_golden", "assets/sun.svg"),
                 x=sunset_icon_x,
@@ -495,7 +495,7 @@ class TimerComponent(BaseComponent):
 
             # Draw the quality percentage
             self.draw.text(
-                (40, 105), f"{quality*100}%", fill="black", font=percent_font
+                (30, 115), f"{int(quality*100)}%", fill="black", font=percent_font
             )
 
             # Draw the quality text below percentage
@@ -513,15 +513,60 @@ class TimerComponent(BaseComponent):
             )
             self.draw.text(
                 (cloud_icon_x + W_ICON_TEXT, cloud_icon_y + H_ICON_TEXT),
-                f"{cloud_cover*100}%",
+                f"{int(cloud_cover*100)}%",
                 fill="black",
                 font=text_font,
             )
 
             # Save the image
             self.img.save(f"output/{self.name}.jpg")
-            print(f"{self.name}: Sunset forecast saved to output/{self.name}.jpg")
+            print(
+                f"[{datetime.now().strftime('%H:%M:%S')}] {self.name}: Sunset forecast saved to output/{self.name}.jpg"
+            )
             return True
         except Exception as e:
-            print(f"{self.name}: Sunset forecast rendering error: {e}")
+            print(f"[!] {self.name}: Sunset forecast rendering error: {e}")
+            return False
+
+
+class NotebookComponent(BaseComponent):
+    def __init__(self, name: str):
+        super().__init__(name)
+        self.component_type = "notebook"
+        self._default_callback_func = self.default_notebook_callback
+        self.hook_callback_func()
+
+    def default_notebook_callback(self):
+        text = self.params.get(
+            "text",
+            "Helloworld",
+        )
+        self.draw_frame(self.draw, bg_color="white")
+        self.draw.text(
+            (60, 30),
+            text,
+            fill="black",
+            font=self._get_monospaced_font(self.params.get("text_size", 70)),
+            spacing=self.params.get("text_spacing", 4),
+        )
+        #
+        icon_size = 120
+        if "icon" in self.params:
+            self.draw_icon(
+                icon_path=self.params["icon"],
+                x=self.width_px - icon_size - 20,
+                y=self.height_px - icon_size - 20,
+                icon_size=icon_size,
+                invert=False,
+            )
+        #
+        try:
+            output_path = f"output/{self.name}.jpg"
+            self.img.save(output_path)
+            print(
+                f"[{datetime.now().strftime('%H:%M:%S')}] {self.name} rendered to {output_path}"
+            )
+            return True
+        except Exception as e:
+            print(f"[!] Error rendering notebook {self.name}: {e}")
             return False

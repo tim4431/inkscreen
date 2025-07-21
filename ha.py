@@ -1,8 +1,9 @@
 from datetime import datetime, timedelta, timezone
 import json, requests
 import numpy as np, pandas as pd
-from homeassistant_api import Client
+from homeassistant_api import Client, WebsocketClient
 from const import *
+from zoneinfo import ZoneInfo
 
 
 class Entity:
@@ -10,7 +11,7 @@ class Entity:
         self.entity_id = entity_id
         self.params = CONF_ENTITIES.get(entity_id, {})
         self.name = self.params.get("name", name or entity_id)
-        self.state_abnormal_str = self.params.get("state_abnormal_str", [])
+        self.state_abnormal_str = self.params.get("state_abnormal_str", ["unavailable"])
         if isinstance(self.state_abnormal_str, str):
             self.state_abnormal_str = [self.state_abnormal_str]
         self.state_str_name_mapping = self.params.get("state_str_name_mapping", {})
@@ -114,8 +115,12 @@ def get_sensor_history(eid: str) -> pd.DataFrame | None:
         "Content-Type": "application/json",
     }
 
-    start = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
-    end = datetime.now(timezone.utc).isoformat()
+    # Get timezone object based on the configured timezone
+    tz = ZoneInfo(TIMEZONE)
+
+    # Get start and end times in the configured timezone
+    start = (datetime.now(tz) - timedelta(hours=24)).isoformat()
+    end = datetime.now(tz).isoformat()
 
     url = f"{BASE_URL}/api/history/period/{start}"
 
@@ -150,15 +155,19 @@ def get_sensor_history(eid: str) -> pd.DataFrame | None:
                 times.append(last_changed)
                 temps.append(temp)
 
-            # Create pandas DataFrame
-            df = pd.DataFrame({"time": pd.to_datetime(times), "temperature": temps})
+            # Create pandas DataFrame with timezone-aware timestamps
+            df = pd.DataFrame(
+                {"time": pd.to_datetime(times, utc=True), "temperature": temps}
+            )
+            # Convert to the configured timezone
+            df["time"] = df["time"].dt.tz_convert(TIMEZONE)
             # print(df)
 
             # If you want a numpy matrix:
             # matrix = df[["time", "temperature"]].to_numpy()
             # print(matrix)
         else:
-            print("No history data found")
+            print("[!] get_sensor_history: No history data found")
             df = pd.DataFrame({"time": [], "temperature": []})
 
         return df
@@ -176,8 +185,5 @@ with Client(REST_URL, TOKEN) as client:
     for eid in WATCHED:
         get_entity_state_rest(client, eid)
 
-# if __name__ == "__main__":
-#     client = Client(REST_URL, TOKEN)
-#     entity_id = "button.esphome_web_2e773f_fan_power"
-#     state = get_entity_state_rest(client, entity_id)
-#     print(state)
+if __name__ == "__main__":
+    get_sensor_history("sensor.temperature_humidity_sensor_a63c_temperature")

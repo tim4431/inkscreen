@@ -1,9 +1,8 @@
-version: '3.8'
-
 services:
   inkscreen:
     build: .
-    container_name: inkscreen-app
+    # image:
+    container_name: inkscreen
     restart: unless-stopped
     volumes:
       # 配置文件挂载
@@ -11,3 +10,5 @@ services:
       - ./secrets.yaml:/app/secrets.yaml:ro
       - ./output:/app/output
       - ./assets:/app/assets
+    environment:
+      - TZ=America/Los_Angeles

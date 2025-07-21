@@ -11,6 +11,7 @@ WS_URL = (
     + "/api/websocket"
 )
 CONF_ENTITIES = CONF["entities"]
+TIMEZONE = CONF["locale"].get("timezone", "America/Los_Angeles")
 WATCHED = CONF_ENTITIES.keys()
 SUNSETHUE_API_KEY = SECRETS["sunsethue"]["api_key"]
 SUNSETHUE_LATITUDE = SECRETS["sunsethue"]["latitude"]
