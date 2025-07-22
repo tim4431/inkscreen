@@ -242,7 +242,7 @@ class BaseComponent:
 
     def _get_font(self, size: int) -> ImageFont.FreeTypeFont:
         try:
-            return ImageFont.truetype(Path("assets/MYRIADPRO-BOLD.otf"), size)
+            return ImageFont.truetype(Path("assets/MYRIADPRO-BOLD.OTF"), size)
         except IOError:
             print("Using default font due to error loading custom font.")
             return ImageFont.load_default()
