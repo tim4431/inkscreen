@@ -45,7 +45,7 @@ components:
     position: [2, 0]  # [X,Y]
     size: [4, 2]     # [W,H]
     type: "timer"
-    refresh_interval: 600   # s
+    refresh_interval: 1800   # s
     callback: "render_temperature_chart"
     params:
       entities:

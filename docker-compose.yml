@@ -1,7 +1,7 @@
 services:
   inkscreen:
-    build: .
-    # image:
+    # build: .
+    image: ghcr.io/tim4431/inkscreen:main
     container_name: inkscreen
     restart: unless-stopped
     volumes:
@@ -12,3 +12,4 @@ services:
       - ./assets:/app/assets
     environment:
       - TZ=America/Los_Angeles
+    tty: true
